@@ -1,3 +1,4 @@
+'use strict';
 import 'babel-polyfill';
 import 'babel-regenerator-runtime';
 import 'source-map-support/register';
