@@ -18,10 +18,14 @@
     "babel-preset-stage-0": "^6.5.0",
     "babel-regenerator-runtime": "^6.5.0",
     "babel-register": "^6.11.6",
+    "babelify": "^7.3.0",
+    "browserify": "^13.1.0",
     "del": "^2.2.1",
     "eslint": "^3.2.2",
     "eslint-plugin-babel": "^3.3.0",
     "eslint-plugin-mocha": "^4.3.0",
+    "event-stream": "^3.3.4",
+    "glob": "^7.1.0",
     "gulp": "^3.9.1",
     "gulp-babel": "^6.1.2",
     "gulp-eslint": "^3.0.1",
@@ -29,7 +33,11 @@
     "gulp-sourcemaps": "^1.6.0",
     "gulp-util": "^3.0.7",
     "mocha": "^3.0.1",
-    "source-map-support": "^0.4.2"
+    "run-sequence": "^1.2.2",
+    "simple-peer": "^6.0.7",
+    "source-map-support": "^0.4.2",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0"
   },
   "homepage": "https://github.com/alkiefer/PacMen#readme",
   "keywords": [
@@ -44,11 +52,17 @@
     "url": "git+https://github.com/alkiefer/PacMen.git"
   },
   "scripts": {
+    "start": "DEBUG=app:* node lib/index.js",
     "build": "gulp build",
     "test": "mocha",
     "watch": "gulp watch"
   },
   "directories": {
     "test": "test"
+  },
+  "dependencies": {
+    "express": "^4.14.0",
+    "node-uuid": "^1.4.7",
+    "uws": "^0.8.0"
   }
 }
