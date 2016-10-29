@@ -9,12 +9,12 @@ export default class Socket {
   _establishConnection() {
     return new Promise((resolve, reject) => {
       const connection = new WebSocket(`ws://${location.host}`);
-      connection.on('open', () => {
+      connection.onopen = () => {
         this.retries++;
         this._listen();
         resolve();
-      });
-      connection.on('error', error => {
+      };
+      connection.onerror = error => {
         error = error || new Error('Connect could not be established.');
         if (this.retries < maxRetries) {
           this.retries++;
@@ -22,19 +22,20 @@ export default class Socket {
         }
         this.connectionError = error;
         reject(error);
-      });
+      };
+      this.connection = connection;
     });
   }
 
   _listen() {
-    this.connection.on('message', message => {
-      const data = JSON.parse(message);
+    this.connection.onmessage = event => {
+      const data = JSON.parse(event.data);
       this._receivers.forEach(rc => rc(data));
-    });
+    };
 
-    this.connection.on('close', () => {
+    this.connection.onclose = () => {
       this.connection = null;
-    });
+    };
   }
 
   send(data) {
@@ -48,7 +49,8 @@ export default class Socket {
     }
 
     return new Promise((resolve, reject) => {
-      this.connection.send(JSON.stringify(data), error => {
+      const message = JSON.stringify(data);
+      this.connection.send(message, error => {
         error ? reject(error) : resolve();
       });
     });

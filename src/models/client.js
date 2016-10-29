@@ -10,8 +10,8 @@ export class Client {
     this._receivers = [];
     this.debug = Debug(`app:client:${this.id}`);
 
-    this.socket.on('message', this._receive);
-    this.socket.on('close', this._close);
+    this.socket.on('message', (...args) => this._receive(...args));
+    this.socket.on('close', () => this._close());
     clientStore.push(this);
   }
 
@@ -27,7 +27,8 @@ export class Client {
 
   send(data) {
     const message = JSON.stringify(data);
-    this.socket.send(message, this.debug);
+    this.debug(`sent ${message}`);
+    this.socket.send(message);
   }
 
   receive(callback) {

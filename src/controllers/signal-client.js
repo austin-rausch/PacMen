@@ -1,7 +1,7 @@
 import clients from '../models/client';
 
-export default function (client, message) {
-  const {receiverId, signalData} = message;
+export default function (client, data) {
+  const {receiverId, signalData} = data;
   const senderId = client.id;
   const receiver = clients.all.find(client => client.id === receiverId);
   receiver.send({

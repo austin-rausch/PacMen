@@ -18,12 +18,12 @@ wss.on('connection', socket => {
   // make client self-aware
   client.send({clientId: client.id});
 
-  client.receive(message => {
-    const handler = handlers[message.type];
+  client.receive(data => {
+    const handler = handlers[data.type];
     if (!handler) {
-      throw new Error(`Invalid message type "${message.type}"`);
+      throw new Error(`Invalid message type "${data.type}"`);
     }
-    handler(client, message);
+    handler(client, data);
   });
 });
 

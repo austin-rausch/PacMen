@@ -2,9 +2,11 @@ import Debug from 'debug';
 
 import peers, {Peer} from './peer';
 import Socket from './socket';
+import Pacman from './engine';
 
 const debug = Debug('app:main');
 const client = {id: null};
+const pacman = new Pacman();
 
 const handlers = {
   'signal-data': handleSignalData,
@@ -25,7 +27,8 @@ client.socket.send({
 client.socket.receive(message => {
   const handler = handlers[message.type];
   if (!handler) {
-    throw new Error(`Invalid message type "${message.type}"`);
+    // throw new Error(`Invalid message type "${message.type}"`);
+    return;
   }
   handler(message);
 });
