@@ -2,11 +2,26 @@ import Debug from 'debug';
 
 import peers, {Peer} from './peer';
 import Socket from './socket';
-import Pacman from './engine';
+import Engine from './engine';
+import Pacman from './pacman';
+import Ghost from './ghost';
 
 const debug = Debug('app:main');
 const client = {id: null};
-const pacman = new Pacman();
+const engine = new Engine();
+
+const pinky = new Ghost();
+pinky.subscribe(state => {
+  engine.updatePlayer(state);
+});
+
+const clyde = new Ghost();
+clyde.subscribe(state => {
+  engine.updatePlayer(state);
+});
+
+const pacman = new Pacman('me');
+Pacman.bind(pacman, engine);
 
 const handlers = {
   'signal-data': handleSignalData,

@@ -1,13 +1,13 @@
 const {Phaser} = window;
 
 export default class Pacman {
-  constructor () {
+  constructor (players = []) {
     this.game = new Phaser.Game(448, 496, Phaser.AUTO);
     this.game.state.add('Game', this, true);
 
     this.map = null;
     this.layer = null;
-    this.pacman = null;
+    this.players = players.map(p => this.createPlayer(p));
 
     this.safetile = 14;
     this.gridsize = 16;
@@ -15,14 +15,8 @@ export default class Pacman {
     this.speed = 150;
     this.threshold = 3;
 
-    this.marker = new Phaser.Point();
-    this.turnPoint = new Phaser.Point();
-
-    this.directions = [null, null, null, null, null];
     this.opposites = [Phaser.NONE, Phaser.RIGHT, Phaser.LEFT, Phaser.DOWN, Phaser.UP];
-
-    this.current = Phaser.NONE;
-    this.turning = Phaser.NONE;
+    this._listeners = [];
   }
 
   init () {
@@ -33,6 +27,42 @@ export default class Pacman {
     Phaser.Canvas.setImageRenderingCrisp(this.game.canvas);
 
     this.physics.startSystem(Phaser.Physics.ARCADE);
+    this.keys = this.input.keyboard.createCursorKeys();
+  }
+
+  createPlayer (player) {
+    const {id, x, y, direction} = player;
+    //  Position Pacman at grid location 14x17 (the +8 accounts for his anchor)
+    const pacman = this.add.sprite((14 * 16) + 8, (17 * 16) + 8, 'pacman', 0);
+    pacman.anchor.set(0.5);
+    pacman.animations.add('munch', [0, 1, 2, 1], 20, true);
+
+    this.physics.arcade.enable(pacman);
+    pacman.body.setSize(16, 16, 0, 0);
+    pacman.play('munch');
+
+    const marker = new Phaser.Point();
+
+    pacman.direction = direction;
+    if (x && y) {
+      pacman.body.reset(x, y);
+    }
+    return {id, marker, pacman, directions: {}, turn: null};
+  }
+
+  updatePlayer (player) {
+    const existing = this.players.find(p => player.id === p.id);
+    if (!existing) {
+      this.players.push(this.createPlayer(player));
+      return;
+    }
+
+    const {x, y, direction} = player;
+    this.tryTurn(existing, direction);
+    if (x && y) {
+      const {pacman} = existing;
+      pacman.body.reset(x, y);
+    }
   }
 
   preload () {
@@ -57,102 +87,101 @@ export default class Pacman {
     this.dots.setAll('x', 6, false, false, 1);
     this.dots.setAll('y', 6, false, false, 1);
 
-        //  Pacman should collide with everything except the safe tile
+    //  Pacman should collide with everything except the safe tile
     this.map.setCollisionByExclusion([this.safetile], true, this.layer);
-
-        //  Position Pacman at grid location 14x17 (the +8 accounts for his anchor)
-    this.pacman = this.add.sprite((14 * 16) + 8, (17 * 16) + 8, 'pacman', 0);
-    this.pacman.anchor.set(0.5);
-    this.pacman.animations.add('munch', [0, 1, 2, 1], 20, true);
-
-    this.physics.arcade.enable(this.pacman);
-    this.pacman.body.setSize(16, 16, 0, 0);
-
-    this.cursors = this.input.keyboard.createCursorKeys();
-
-    this.pacman.play('munch');
-    this.move(Phaser.LEFT);
   }
 
-  checkKeys() {
+  readDirection () {
     const {LEFT, RIGHT, UP, DOWN} = Phaser;
-    const {left, right, up, down} = this.cursors;
-    if (left.isDown) return this.tryTurn(LEFT);
-    if (right.isDown) return this.tryTurn(RIGHT);
-    if (up.isDown) return this.tryTurn(UP);
-    if (down.isDown) return this.tryTurn(DOWN);
+    const {left, right, up, down} = this.keys;
+    if (left.isDown) return LEFT;
+    if (right.isDown) return RIGHT;
+    if (up.isDown) return UP;
+    if (down.isDown) return DOWN;
   }
 
-  tryTurn(direction) {
-    if (this.current === direction) return;
-    const nextTile = this.directions[direction];
+  onDirection (listener) {
+    this._listeners.push(listener);
+  }
+
+  emitDirection () {
+    const direction = this.readDirection();
+    this._listeners.forEach(func => func(direction));
+  }
+
+  tryTurn (player, direction) {
+    if (player.pacman.direction === direction) return;
+    const nextTile = player.directions[direction];
     const isNextTileSafe = nextTile && nextTile.index === this.safetile;
-    if (isNextTileSafe) {
-      const reverse = this.current === this.opposites[direction];
-      if (reverse) {
-        // move immediately
-        this.move(direction);
-      } else {
-        // promise to turn at tile center point
-        this.turning = direction;
-        this.turnPoint.x = (this.marker.x * this.gridsize) + (this.gridsize / 2);
-        this.turnPoint.y = (this.marker.y * this.gridsize) + (this.gridsize / 2);
-      }
+    if (!isNextTileSafe) return;
+
+    const reverse = player.pacman.direction === this.opposites[direction];
+    if (reverse) {
+      player.pacman.direction = direction;
+      return this.move(player);
     }
+
+    // promise to turn at tile center point
+    const x = (player.marker.x * this.gridsize) + (this.gridsize / 2);
+    const y = (player.marker.y * this.gridsize) + (this.gridsize / 2);
+    const point = new Phaser.Point(x, y);
+    player.turn = {direction, point};
   }
 
-  turn () {
-    const cx = Math.floor(this.pacman.x);
-    const cy = Math.floor(this.pacman.y);
+  turn (player) {
+    if (!player.turn) return;
+    const {direction, point} = player.turn;
+    const cx = Math.floor(player.pacman.x);
+    const cy = Math.floor(player.pacman.y);
 
     // This needs a threshold, because at high speeds you can't turn
     // because the coordinates skip past
-    const xChange = this.math.fuzzyEqual(cx, this.turnPoint.x, this.threshold);
-    const yChange = this.math.fuzzyEqual(cy, this.turnPoint.y, this.threshold);
+    const xChange = this.math.fuzzyEqual(cx, point.x, this.threshold);
+    const yChange = this.math.fuzzyEqual(cy, point.y, this.threshold);
     const canTurn = xChange && yChange;
     if (!canTurn) {
       return;
     }
 
-        //  Grid align before turning
-    this.pacman.x = this.turnPoint.x;
-    this.pacman.y = this.turnPoint.y;
+    //  Grid align before turning
+    player.pacman.x = point.x;
+    player.pacman.y = point.y;
+    player.pacman.direction = direction;
 
-    this.pacman.body.reset(this.turnPoint.x, this.turnPoint.y);
+    player.pacman.body.reset(point.x, point.y);
+    player.turn = null;
 
-    this.move(this.turning);
-
-    this.turning = Phaser.NONE;
-
-    return true;
+    this.move(player);
   }
 
-  move (direction) {
-    let speed = this.speed;
+  move (player) {
+    const {pacman} = player;
+    const {direction} = pacman;
 
-    if (direction === Phaser.LEFT || direction === Phaser.UP) {
+    let speed = this.speed;
+    const reverse = direction === Phaser.LEFT || direction === Phaser.UP;
+    if (reverse) {
       speed = -speed;
     }
 
-    if (direction === Phaser.LEFT || direction === Phaser.RIGHT) {
-      this.pacman.body.velocity.x = speed;
+    const hozizontal = direction === Phaser.LEFT || direction === Phaser.RIGHT;
+    if (hozizontal) {
+      pacman.body.velocity.x = speed;
     } else {
-      this.pacman.body.velocity.y = speed;
+      pacman.body.velocity.y = speed;
     }
 
     //  Reset the scale and angle (Pacman is facing to the right in the sprite sheet)
-    this.pacman.scale.x = 1;
-    this.pacman.angle = 0;
+    pacman.scale.x = 1;
+    pacman.angle = 0;
 
     if (direction === Phaser.LEFT) {
-      this.pacman.scale.x = -1;
+      pacman.scale.x = -1;
     } else if (direction === Phaser.UP) {
-      this.pacman.angle = 270;
+      pacman.angle = 270;
     } else if (direction === Phaser.DOWN) {
-      this.pacman.angle = 90;
+      pacman.angle = 90;
     }
-
-    this.current = direction;
   }
 
   eatDot (pacman, dot) {
@@ -163,27 +192,37 @@ export default class Pacman {
     }
   }
 
+  eatMan (pacman1, pacman2) {
+    // decide who eats who
+  }
+
   update () {
-    this.physics.arcade.collide(this.pacman, this.layer);
-    this.physics.arcade.overlap(this.pacman, this.dots, this.eatDot, null, this);
+    this.emitDirection();
 
-    this.marker.x = this.math.snapToFloor(Math.floor(this.pacman.x), this.gridsize) / this.gridsize;
-    this.marker.y = this.math.snapToFloor(Math.floor(this.pacman.y), this.gridsize) / this.gridsize;
+    for (const player of this.players) {
+      const {pacman, marker, directions} = player;
+      this.physics.arcade.collide(pacman, this.layer);
+      this.physics.arcade.overlap(pacman, this.dots, this.eatDot, null, this);
 
-    {
-      //  Update our grid sensors
-      const {x, y} = this.marker;
-      const {index} = this.layer;
-      this.directions[Phaser.LEFT] = this.map.getTileLeft(index, x, y);
-      this.directions[Phaser.RIGHT] = this.map.getTileRight(index, x, y);
-      this.directions[Phaser.UP] = this.map.getTileAbove(index, x, y);
-      this.directions[Phaser.DOWN] = this.map.getTileBelow(index, x, y);
-    }
+      for (const opponent of this.players) {
+        if (opponent === player) continue;
+        this.physics.arcade.overlap(player.pacman, opponent.pacman, this.eatMan, null, this);
+      }
 
-    this.checkKeys();
+      marker.x = this.math.snapToFloor(Math.floor(pacman.x), this.gridsize) / this.gridsize;
+      marker.y = this.math.snapToFloor(Math.floor(pacman.y), this.gridsize) / this.gridsize;
 
-    if (this.turning !== Phaser.NONE) {
-      this.turn();
+      {
+        //  Update our grid sensors
+        const {x, y} = marker;
+        const {index} = this.layer;
+        directions[Phaser.LEFT] = this.map.getTileLeft(index, x, y);
+        directions[Phaser.RIGHT] = this.map.getTileRight(index, x, y);
+        directions[Phaser.UP] = this.map.getTileAbove(index, x, y);
+        directions[Phaser.DOWN] = this.map.getTileBelow(index, x, y);
+      }
+
+      this.turn(player);
     }
   }
 }
