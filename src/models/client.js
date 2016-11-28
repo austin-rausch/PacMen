@@ -7,6 +7,7 @@ export class Client {
   constructor(socket) {
     this.id = uuid.v4();
     this.socket = socket;
+    this.room = null;
     this._receivers = [];
     this.debug = Debug(`app:client:${this.id}`);
 
@@ -22,6 +23,9 @@ export class Client {
 
   _close() {
     this.debug('socket connection closed');
+    if (this.room) {
+      this.room.removeClient(this);
+    }
     clientStore = clientStore.filter(client => client.id !== this.id);
   }
 

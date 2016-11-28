@@ -16,7 +16,10 @@ wss.on('connection', socket => {
   const client = new Client(socket);
 
   // make client self-aware
-  client.send({clientId: client.id});
+  client.send({
+    type: 'client-id',
+    clientId: client.id
+  });
 
   client.receive(data => {
     const handler = handlers[data.type];
