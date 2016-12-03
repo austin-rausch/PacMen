@@ -7,5 +7,5 @@ export default function joinRandomGame (client, message) {
     type: 'new-player',
     clientId: client.id
   });
-  return Promise.resolve();
+  return Promise.resolve(room);
 }

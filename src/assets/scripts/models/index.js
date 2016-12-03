@@ -45,9 +45,10 @@ class Player {
     const d = this.getDirection();
     let x = this.getX();
     let y = this.getY();
+    let nextCell;
     switch (d) {
       case directions.north:
-        const nextCell = game.getCell(x, y - 1);
+        nextCell = this.game.getCell(x, y - 1);
         if (nextCell && nextCell.accessible) {
           y -= deltaY;
         } else {
@@ -55,7 +56,7 @@ class Player {
         }
         break;
       case directions.east:
-        const nextCell = game.getCell(x + 1, y);
+        nextCell = this.game.getCell(x + 1, y);
         if (nextCell && nextCell.accessible) {
           x += deltaX;
         } else {
@@ -63,7 +64,7 @@ class Player {
         }
         break;
       case directions.south:
-        const nextCell = game.getCell(x, y + 1);
+        nextCell = this.game.getCell(x, y + 1);
         if (nextCell && nextCell.accessible) {
           y += deltaY;
         } else {
@@ -73,6 +74,8 @@ class Player {
       case directions.west:
         x = this.getX() - deltaX;
         y = this.getY();
+        break;
+      default:
         break;
     }
 
@@ -104,10 +107,9 @@ class Player {
     this.position = {
       x: fork.x,
       y: 0
-    }
+    };
 
     // apply increments to write a new history
-
   }
 }
 

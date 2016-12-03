@@ -17,12 +17,16 @@ export class Room {
     this.id = uuid.v4();
     this.clients = [];
     this.debug = Debug(`app:room:${this.id}`);
-
     roomStore.push(this);
   }
 
   addClient(client) {
+    client.room = this;
     this.clients.push(client);
+  }
+
+  removeClient (client) {
+    this.clients = this.clients.filter((c) => c.id !== client.id);
   }
 
   broadcast(data) {

@@ -3,7 +3,7 @@ const {Phaser} = window;
 export default class Pacman {
   constructor (players = []) {
     this.game = new Phaser.Game(448, 496, Phaser.AUTO);
-    this.game.state.add('Game', this, true);
+    // this.game.state.add('Game', this, true);
 
     this.map = null;
     this.layer = null;
@@ -29,7 +29,9 @@ export default class Pacman {
     this.physics.startSystem(Phaser.Physics.ARCADE);
     this.keys = this.input.keyboard.createCursorKeys();
   }
-
+  startGame () {
+    this.game.state.add('Game', this, true);
+  }
   createPlayer (player) {
     const {id, x, y, direction} = player;
     //  Position Pacman at grid location 14x17 (the +8 accounts for his anchor)
