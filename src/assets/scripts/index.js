@@ -5,14 +5,14 @@ import PeerController from './peerController';
 import Socket from './socket';
 import Engine from './engine';
 import Pacman from './pacman';
-import Ghost from './ghost';
+// import Ghost from './ghost';
 
 const debug = Debug('app:main');
 const client = {id: null};
 const engine = new Engine();
 const peers = new PeerController();
 
-const pinky = new Ghost();
+/* const pinky = new Ghost();
 pinky.subscribe(state => {
   engine.updatePlayer(state);
 });
@@ -20,10 +20,10 @@ pinky.subscribe(state => {
 const clyde = new Ghost();
 clyde.subscribe(state => {
   engine.updatePlayer(state);
-});
+});*/
 
 const pacman = new Pacman('me');
-Pacman.bind(pacman, engine);
+// Pacman.bind(pacman, engine);
 
 const handlers = {
   'signal-data': handleSignalData,
@@ -33,13 +33,48 @@ const handlers = {
   'client-id': handleClientId
 };
 
+
+window.addEventListener('load', function () {
+  const startWrap = document.getElementById('startWrap');
+  const startButton = document.getElementById('startButton');
+  const leaveButton = document.getElementById('leaveButton');
+  startButton.addEventListener('click', function () {
+    startGame();
+    addClass(startButton, 'hide');
+    addClass(startWrap, 'hide');
+  });
+  leaveButton.addEventListener('click', function () {
+    // stop game & leave game
+    removeClass(startButton, 'hide');
+    removeClass(startWrap, 'hide');
+  });
+});
+
+function hasClass(el, className) {
+  if (el.classList) return el.classList.contains(className);
+  else return !!el.className.match(new RegExp(`(\\s|^)${className}(\\s|$)`));
+}
+
+function addClass(el, className) {
+  if (el.classList) el.classList.add(className);
+  else if (!hasClass(el, className)) el.className += ` ${className}`;
+}
+
+function removeClass(el, className) {
+  if (el.classList) el.classList.remove(className);
+  else if (hasClass(el, className)) {
+    const reg = new RegExp(`(\\s|^)${className}(\\s|$)`);
+    el.className = el.className.replace(reg, ' ');
+  }
+}
+
 client.socket = new Socket();
 
 // join game
-client.socket.send({
+/* client.socket.send({
   type: 'join-random-game',
   displayName: 'Mike Tyson'
-});
+});*/
 
 client.socket.receive(message => {
   const handler = handlers[message.type];
@@ -49,6 +84,15 @@ client.socket.receive(message => {
   }
   handler(message);
 });
+
+function startGame () {
+  engine.startGame();
+  Pacman.bind(pacman, engine);
+  client.socket.send({
+    type: 'join-random-game',
+    displayName: 'Mike Tyson'
+  });
+}
 
 function handleClientId (message) {
   client.id = message.clientId;

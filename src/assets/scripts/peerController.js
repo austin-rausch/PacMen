@@ -114,7 +114,7 @@ export default class PeerController {
     this.master = peer;
   }
 
-  resolveMaster (options) {
+  resolveMaster (options = {}) {
     const {timeout, attempts} = options;
     return new Promise((resolve, reject) => {
       if (timeout) {
