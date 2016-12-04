@@ -50,7 +50,7 @@ export default class Pacman {
 
     pacman.direction = direction;
     if (x && y) {
-      pacman.body.reset(x, y);
+      pacman.reset(x, y);
     }
     return {id, marker, pacman, directions: {}, turn: null};
   }
@@ -63,11 +63,13 @@ export default class Pacman {
     }
 
     const {x, y, direction} = player;
-    this.tryTurn(existing, direction);
     if (x && y) {
       const {pacman} = existing;
-      pacman.body.reset(x, y);
+      pacman.reset(x, y);
+      this.updateMetadata(existing);
     }
+    this.tryTurn(existing, direction);
+    this.move(existing);
   }
 
   preload () {
@@ -88,7 +90,7 @@ export default class Pacman {
 
     this.map.createFromTiles(7, this.safetile, 'dot', this.layer, this.dots);
 
-        //  The dots will need to be offset by 6px to put them back in the middle of the grid
+    //  The dots will need to be offset by 6px to put them back in the middle of the grid
     this.dots.setAll('x', 6, false, false, 1);
     this.dots.setAll('y', 6, false, false, 1);
 
@@ -245,11 +247,25 @@ export default class Pacman {
     this.emitter.emit('eat-pacman', eatMessage);
   }
 
+  updateMetadata(player) {
+    const {gridsize} = this;
+    const {pacman, marker, directions} = player;
+    marker.x = this.math.snapToFloor(Math.floor(pacman.body.x), gridsize) / gridsize;
+    marker.y = this.math.snapToFloor(Math.floor(pacman.body.y), gridsize) / gridsize;
+
+    const {x, y} = marker;
+    const {index} = this.layer;
+    directions[Phaser.LEFT] = this.map.getTileLeft(index, x, y);
+    directions[Phaser.RIGHT] = this.map.getTileRight(index, x, y);
+    directions[Phaser.UP] = this.map.getTileAbove(index, x, y);
+    directions[Phaser.DOWN] = this.map.getTileBelow(index, x, y);
+  }
+
   update () {
     this.emitDirection();
 
     for (const player of this.players) {
-      const {pacman, marker, directions} = player;
+      const {pacman} = player;
       this.physics.arcade.collide(pacman, this.layer);
       this.physics.arcade.overlap(pacman, this.dots, this.eatDot, null, this);
 
@@ -258,19 +274,7 @@ export default class Pacman {
         this.physics.arcade.overlap(player.pacman, opponent.pacman, this.eatMan, null, this);
       }
 
-      marker.x = this.math.snapToFloor(Math.floor(pacman.x), this.gridsize) / this.gridsize;
-      marker.y = this.math.snapToFloor(Math.floor(pacman.y), this.gridsize) / this.gridsize;
-
-      {
-        //  Update our grid sensors
-        const {x, y} = marker;
-        const {index} = this.layer;
-        directions[Phaser.LEFT] = this.map.getTileLeft(index, x, y);
-        directions[Phaser.RIGHT] = this.map.getTileRight(index, x, y);
-        directions[Phaser.UP] = this.map.getTileAbove(index, x, y);
-        directions[Phaser.DOWN] = this.map.getTileBelow(index, x, y);
-      }
-
+      this.updateMetadata(player);
       this.turn(player);
     }
   }

@@ -2,7 +2,7 @@ import uuid from 'node-uuid';
 import Debug from 'debug';
 
 const roomStore = [];
-const maxParticipants = 10;
+const maxParticipants = 5;
 
 function getUnfilledRoom() {
   const room = roomStore.find(room => {

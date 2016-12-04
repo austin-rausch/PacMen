@@ -13,6 +13,7 @@ export class Client {
 
     this.socket.on('message', (...args) => this._receive(...args));
     this.socket.on('close', () => this._close());
+    this.socket.on('disconnect', () => this._close());
     clientStore.push(this);
   }
 

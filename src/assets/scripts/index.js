@@ -87,7 +87,7 @@ pacman.subscribe(({id, direction}) => {
   const player = engine.players.find(player => player.id === id);
   if (!player) return;
 
-  const {x, y} = player.pacman.body;
+  const {x, y} = player.pacman;
   if (lastMove.x === x && lastMove.y === y) return;
   lastMove = {x, y};
 
@@ -186,14 +186,10 @@ function handlePeerMessage(message, peer) {
   // or a direction change
   if (message.type === 'pacman-move') {
     const {sender, id, x, y, direction} = message;
-    if (peers.id === sender) return;
-
-    if (peers.isMaster()) {
-      peers.broadcast(message, peer);
+    if (peers.id !== sender) {
+      const update = {id, x, y, direction};
+      engine.updatePlayer(update);
     }
-
-    const update = {id, x, y, direction};
-    engine.updatePlayer(update);
   }
 
   if (message.type === 'pacman-ate') {
@@ -201,12 +197,19 @@ function handlePeerMessage(message, peer) {
     updates.forEach(update => engine.updatePlayer(update));
   }
 
+  if (message.type === 'pacman-dot') {
+    const {x, y} = message;
+    engine.killDotAtPoint(x, y);
+  }
+
   if (!peers.isMaster()) return;
+
+  if (message.type === 'pacman-move') {
+    peers.broadcast(message, peer);
+  }
 
   if (message.type === 'pacman-dot') {
     peers.broadcast(message);
-    const {x, y} = message;
-    engine.killDotAtPoint(x, y);
   }
 
   // When a pacman thinks it hit another pacman
