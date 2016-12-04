@@ -30,12 +30,16 @@ export default class Socket {
   _listen() {
     this.connection.onmessage = event => {
       const data = JSON.parse(event.data);
-      this._receivers.forEach(rc => rc(data));
+      this.emit(data);
     };
 
     this.connection.onclose = () => {
       this.connection = null;
     };
+  }
+
+  emit (data) {
+    this._receivers.forEach(rc => rc(data));
   }
 
   send(data) {

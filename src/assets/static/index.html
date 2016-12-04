@@ -1,58 +1,24 @@
-  <!DOCTYPE HTML>
+<!doctype html>
 <html>
 <head>
     <title>Pacman</title>
     <meta charset="utf-8">
-    <style>
-        html, body {
-          min-width: 100% !important;
-          min-height: 100% !important;
-          height: 100%;
-          width: 100%;
-        }
-        body {
-          margin: 0;
-          padding: 0;
-          background-color: #000;
-        }
-        div.enter-button {
-          border: none;
-          font: normal 70px/1 "VT323", Helvetica, sans-serif;
-          color: rgba(249,249,249,1);
-          text-align: center;
-          background: rgba(12,20,173,1);
-          cursor: pointer;
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          border-radius: 15px;
-          box-shadow: 0 9px #999;
-          user-select: none;
-        }
-        div.enter-button:active {
-          box-shadow: 0 4px #666;
-          transform: translate(-50%, -40%);
-        }
-        div.enterWrap {
-          position: relative;
-          height: 100%;
-          width: 100%;
-          min-width: 100%;
-          min-height: 100%;
-        }
-        div.hide {
-          display: none;
-        }
-    </style>
+    <link rel='stylesheet' href='/style.css'>
 </head>
 <body>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/2.2.2/phaser.js"></script>
-  <script src="/scripts/index.js"></script>
-  <div id='startWrap' class='enterWrap'>
-    <div id='startButton' class='enter-button'>Enter Game</div>
+  <div id='startWrap' class='start-view'>
+    <div class='start-menu'>
+      <div class='title'>
+        <h1>PacMen</h1>
+        <p>Multiplayer Pacman</p>
+      </div>
+      <div class='enterWrap'>
+        <div id='startButton' class='enter-button'>Enter Game</div>
+      </div>
+      <div id='leaveButton' class='hidden'>Leave Game</div>
+    </div>
   </div>
-  <div id='leaveButton' class='hide'>Leave Game</div>
-  <link async href="http://fonts.googleapis.com/css?family=VT323" rel="stylesheet" type="text/css"/>
+  <script src="/phaser.js"></script>
+  <script src="/scripts/index.js"></script>
 </body>
 </html>

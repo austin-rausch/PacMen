@@ -8,6 +8,8 @@ export default class Pacman {
   }
 
   update (direction) {
+    // if (direction === this.direction) return;
+    // if (direction === 0) return;
     this.direction = direction;
     this.emit();
   }

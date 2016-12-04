@@ -1,4 +1,5 @@
 const {Phaser} = window;
+const {EventEmitter} = require('events');
 
 export default class Pacman {
   constructor (players = []) {
@@ -16,7 +17,7 @@ export default class Pacman {
     this.threshold = 3;
 
     this.opposites = [Phaser.NONE, Phaser.RIGHT, Phaser.LEFT, Phaser.DOWN, Phaser.UP];
-    this._listeners = [];
+    this.emitter = new EventEmitter();
   }
 
   init () {
@@ -29,9 +30,11 @@ export default class Pacman {
     this.physics.startSystem(Phaser.Physics.ARCADE);
     this.keys = this.input.keyboard.createCursorKeys();
   }
+
   startGame () {
     this.game.state.add('Game', this, true);
   }
+
   createPlayer (player) {
     const {id, x, y, direction} = player;
     //  Position Pacman at grid location 14x17 (the +8 accounts for his anchor)
@@ -94,21 +97,34 @@ export default class Pacman {
   }
 
   readDirection () {
-    const {LEFT, RIGHT, UP, DOWN} = Phaser;
+    const {LEFT, RIGHT, UP, DOWN, NONE} = Phaser;
     const {left, right, up, down} = this.keys;
     if (left.isDown) return LEFT;
     if (right.isDown) return RIGHT;
     if (up.isDown) return UP;
     if (down.isDown) return DOWN;
+    return NONE;
+  }
+
+  onPacmanEat (listener) {
+    this.emitter.on('eat-pacman', listener);
+    return this;
+  }
+
+  onDotEat (listener) {
+    this.emitter.on('eat-dot', listener);
+    return this;
   }
 
   onDirection (listener) {
-    this._listeners.push(listener);
+    this.emitter.on('direction', listener);
+    return this;
   }
 
   emitDirection () {
     const direction = this.readDirection();
-    this._listeners.forEach(func => func(direction));
+    if (direction === Phaser.NONE) return;
+    this.emitter.emit('direction', direction);
   }
 
   tryTurn (player, direction) {
@@ -186,16 +202,47 @@ export default class Pacman {
     }
   }
 
-  eatDot (pacman, dot) {
-    dot.kill();
+  killDotAtPoint (x, y) {
+    const dot = this.dots.children.find(dot => dot.x === x && dot.y === y);
+    if (dot) dot.kill();
 
     if (this.dots.total === 0) {
       this.dots.callAll('revive');
     }
   }
 
+  eatDot (pacman, dot) {
+    dot.kill();
+    const player = this.players.find(player => player.pacman === pacman);
+    player.score = (player.score || 0) + 1;
+
+    const data = {
+      x: dot.x,
+      y: dot.y
+    };
+    this.emitter.emit('eat-dot', data);
+  }
+
   eatMan (pacman1, pacman2) {
     // decide who eats who
+    const player1 = this.players.find(player => player.pacman === pacman1);
+    const player2 = this.players.find(player => player.pacman === pacman2);
+    const shouldReport = player1.isSelf || player2.isSelf;
+    if (!shouldReport) return;
+
+    let id;
+    let target;
+    if (player1.isSelf) {
+      id = player1.id;
+      target = player2.id;
+    } else {
+      id = player2.id;
+      target = player1.id;
+    }
+
+    const score = player1.isSelf ? player1.score : player2.score;
+    const eatMessage = {id, target, score};
+    this.emitter.emit('eat-pacman', eatMessage);
   }
 
   update () {

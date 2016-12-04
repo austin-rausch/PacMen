@@ -66,8 +66,10 @@ export default class PeerController {
     peer.signal(signalData);
   }
 
-  broadcast (data) {
-    this.store.forEach((peer) => { peer.send(data); });
+  broadcast (data, origin) {
+    this.store.forEach(peer => {
+      if (peer !== origin) peer.send(data);
+    });
   }
 
   broadcastPromiseRace (data, timeout) {
@@ -110,8 +112,18 @@ export default class PeerController {
     return Promise.all(promises);
   }
 
+  isMaster() {
+    return this.master === true;
+  }
+
   setMaster (peer) {
     this.master = peer;
+  }
+
+  sendMaster (message) {
+    if (this.master) {
+      this.master.send(message);
+    }
   }
 
   resolveMaster () {

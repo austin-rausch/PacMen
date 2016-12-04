@@ -1,22 +1,8 @@
 import SimplePeer from 'simple-peer';
 import Debug from 'debug';
+import tactic from 'tactic';
 
-class Deferred {
-  constructor() {
-    this.promise = new Promise((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
-    });
-  }
-
-  then() {
-    return this.promise.then(...arguments);
-  }
-
-  catch() {
-    return this.promise.catch(...arguments);
-  }
-}
+const {Defer} = tactic;
 
 export class Peer {
   constructor(client, id, room, initiate) {
@@ -26,7 +12,7 @@ export class Peer {
     this.receiptNumber = 0;
     this.debug = Debug(`app:peer:${this.id}`);
     this._receivers = [];
-    this.connect = new Deferred();
+    this.connect = new Defer();
     this.seed = null;
     this.master = false;
     this.controller = null;

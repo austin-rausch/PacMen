@@ -1,0 +1,60 @@
+html, body {
+  height: 100%;
+  width: 100%;
+}
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: monospace, sans-serif;
+}
+div.enter-button {
+  border: none;
+  color: rgba(249,249,249,1);
+  text-align: center;
+  background: rgba(12,20,173,1);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+div.enterWrap {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.start-view {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 3em;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 1em;
+}
+
+.title h1 {
+  color: #fff;
+  margin: 0px;
+}
+
+.title p {
+  color: #eee;
+  margin: 0px;
+}

@@ -1,4 +1,7 @@
 import Debug from 'debug';
+import tactic from 'tactic';
+
+const {Defer} = tactic;
 
 import {Peer} from './peer';
 import PeerController from './peerController';
@@ -8,10 +11,15 @@ import Pacman from './pacman';
 // import Ghost from './ghost';
 
 const debug = Debug('app:main');
+localStorage.debug = 'app:*';
+
+const {Phaser} = window;
 const client = {id: null};
 const engine = new Engine();
 const peers = new PeerController();
 
+
+window.engine = engine;
 /* const pinky = new Ghost();
 pinky.subscribe(state => {
   engine.updatePlayer(state);
@@ -25,29 +33,18 @@ clyde.subscribe(state => {
 const pacman = new Pacman('me');
 // Pacman.bind(pacman, engine);
 
-const handlers = {
-  'signal-data': handleSignalData,
-  'new-player': handleNewPlayer,
-  'room-joined': handleRoomJoined,
-  'room-join-error': handleRoomJoinError,
-  'client-id': handleClientId
-};
-
-
-window.addEventListener('load', function () {
-  const startWrap = document.getElementById('startWrap');
-  const startButton = document.getElementById('startButton');
-  const leaveButton = document.getElementById('leaveButton');
-  startButton.addEventListener('click', function () {
-    startGame();
-    addClass(startButton, 'hide');
-    addClass(startWrap, 'hide');
-  });
-  leaveButton.addEventListener('click', function () {
-    // stop game & leave game
-    removeClass(startButton, 'hide');
-    removeClass(startWrap, 'hide');
-  });
+const startWrap = document.getElementById('startWrap');
+const startButton = document.getElementById('startButton');
+const leaveButton = document.getElementById('leaveButton');
+startButton.addEventListener('click', function () {
+  startGame();
+  addClass(startButton, 'hidden');
+  addClass(startWrap, 'hidden');
+});
+leaveButton.addEventListener('click', function () {
+  // stop game & leave game
+  removeClass(startButton, 'hidden');
+  removeClass(startWrap, 'hidden');
 });
 
 function hasClass(el, className) {
@@ -75,6 +72,60 @@ client.socket = new Socket();
   type: 'join-random-game',
   displayName: 'Mike Tyson'
 });*/
+
+function dispatch (message) {
+  if (peers.isMaster()) {
+    handlePeerMessage(message);
+    return;
+  }
+
+  peers.sendMaster(message);
+}
+
+let lastMove = {x: 0, y: 0};
+pacman.subscribe(({id, direction}) => {
+  const player = engine.players.find(player => player.id === id);
+  if (!player) return;
+
+  const {x, y} = player.pacman.body;
+  if (lastMove.x === x && lastMove.y === y) return;
+  lastMove = {x, y};
+
+  const message = {
+    type: 'pacman-move',
+    sender: peers.id,
+    id: peers.id,
+    direction,
+    x, y
+  };
+  dispatch(message);
+});
+
+engine.onPacmanEat(data => {
+  const message = {
+    type: 'pacman-eat',
+    sender: peers.id,
+    ...data
+  };
+  dispatch(message);
+});
+
+engine.onDotEat(data => {
+  const message = {
+    ...data,
+    type: 'pacman-dot',
+    sender: peers.id
+  };
+  dispatch(message);
+});
+
+const handlers = {
+  'signal-data': handleSignalData,
+  'new-player': handleNewPlayer,
+  'room-joined': handleRoomJoined,
+  'room-join-error': handleRoomJoinError,
+  'client-id': handleClientId
+};
 
 client.socket.receive(message => {
   const handler = handlers[message.type];
@@ -105,6 +156,7 @@ function handleSignalData (message) {
 }
 
 function handleNewPlayer (message) {
+  debug('handleNewPlayer', message);
   const {roomId, clientId} = message;
   if (clientId === client.id) return;
   const peer = new Peer(client, clientId, roomId);
@@ -113,6 +165,7 @@ function handleNewPlayer (message) {
 }
 
 function handleRoomJoined (message) {
+  debug('handleRoomJoined', message);
   const {roomId, roomMembers} = message;
   roomMembers.forEach(peerId => {
     if (peerId === client.id) return;
@@ -121,18 +174,121 @@ function handleRoomJoined (message) {
     peer.receive(handlePeerMessage);
   });
   return peers.resolveMaster().then(() => {
-    if (peers.master === true) {
-      console.log('I am master');
-    } else {
-      console.log('master id is: ', peers.master.id);
-    }
+    const result = peers.isMaster() ? 'Master' : 'Not master';
+    debug(`election results: ${result}`);
   });
 }
 
 function handlePeerMessage(message, peer) {
-  debug('got peer message:', message);
+  debug('handlePeerMessage', message, peer);
+
+  // When a pacman reports its current position
+  // or a direction change
+  if (message.type === 'pacman-move') {
+    const {sender, id, x, y, direction} = message;
+    if (peers.id === sender) return;
+
+    if (peers.isMaster()) {
+      peers.broadcast(message, peer);
+    }
+
+    const update = {id, x, y, direction};
+    engine.updatePlayer(update);
+  }
+
+  if (message.type === 'pacman-ate') {
+    const {updates} = message;
+    updates.forEach(update => engine.updatePlayer(update));
+  }
+
+  if (!peers.isMaster()) return;
+
+  if (message.type === 'pacman-dot') {
+    peers.broadcast(message);
+    const {x, y} = message;
+    engine.killDotAtPoint(x, y);
+  }
+
+  // When a pacman thinks it hit another pacman
+  // We open a window of time for another pacman
+  // to acknowledge the interaction
+  if (message.type === 'pacman-eat') {
+    const {id, target, score} = message;
+    attemptEat({id, target, score})
+      .then(({hasVictor, winner, loser}) => {
+        const {x, y} = spawnPosition();
+        const loserUpdate = {
+          id: loser,
+          direction: Phaser.LEFT,
+          x, y
+        };
+        const decision = {
+          type: 'pacman-ate',
+          updates: [loserUpdate]
+        };
+        peers.broadcast(decision);
+        engine.updatePlayer(loserUpdate);
+      })
+      .catch(reason => {
+        // assume no other peer ack'd so we drop the eat
+      });
+  }
+}
+
+let spawnIndex = 0;
+const spawnPoints = [
+  {x: 16, y: 16},
+  {x: 416, y: 16},
+  {x: 16, y: 224},
+  {x: 416, y: 224},
+  {x: 416, y: 464},
+  {x: 416, y: 464}
+];
+function spawnPosition () {
+  spawnIndex = (spawnIndex + 1) % spawnPoints.length;
+  return spawnPoints[spawnIndex];
+}
+
+let openEats = [];
+function attemptEat ({id, target, score}) {
+  const existingEat = openEats.find(eat => {
+    return eat.target === id && eat.id === target;
+  });
+  if (!existingEat) {
+    const defer = new Defer();
+    const newEat = {id, target, score, defer};
+    openEats.push(newEat);
+    setTimeout(() => {
+      if (newEat.done) return;
+      // reap unack'd eat
+      openEats = openEats.filter(eat => eat !== newEat);
+      newEat.reject(new Error('No one acknowledged eat'));
+    }, 200);
+    return defer;
+  }
+  existingEat.done = true;
+  openEats = openEats.filter(eat => eat !== existingEat);
+
+  if (score === existingEat.score) {
+    const reason = new Error('Score tied, no winner');
+    existingEat.defer.reject(reason);
+    return Promise.reject(reason);
+  }
+
+  let winner;
+  let loser;
+  if (score > existingEat) {
+    winner = id;
+    loser = target;
+  } else {
+    winner = target;
+    loser = id;
+  }
+  const decision = {winner, loser};
+  existingEat.defer.resolve(decision);
+  return Promise.resolve(decision);
 }
 
 function handleRoomJoinError(message) {
-  debug('got room join error:', message);
+  debug('handleRoomJoinError', message);
 }
