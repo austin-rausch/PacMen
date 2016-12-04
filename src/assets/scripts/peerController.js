@@ -114,92 +114,77 @@ export default class PeerController {
     this.master = peer;
   }
 
-  resolveMaster (options = {}) {
-    const {timeout, attempts} = options;
-    return new Promise((resolve, reject) => {
-      if (timeout) {
-        setTimeout(() => {
-          if (attempts === 0) {
-            reject(new Error('Reached maximum resolve attempts.'));
-          } else {
-            resolve(this.resolveMaster({
-              timeout,
-              attempts: attempts - 1
-            }));
+  resolveMaster () {
+    if (this.master) {
+      this.setMaster(null);
+    }
+    return this.broadcastPromiseRace({
+      type: 'who-is-master'
+    }, 5000).then((data, peer) => {
+      if (data.type === 'shut-up') {
+        return this.resolveMaster();
+      }
+    }).catch((e) => {
+      // timeout, there is no master.
+      const masterPromise = this.receiveOnceRace((data) => {
+        return data.type === 'i-am-master';
+      });
+      this.resolvingMaster = true;
+      if (this.store.length === 0) {
+        // in this case, you are by default the master.
+        this.receiveAll((data, peer) => {
+          if (data.type === 'who-is-master') {
+            // receipt is requested.
+            if (data.reply === true) {
+              peer.send({
+                type: 'i-am-master',
+                returnReceipt: data.returnReceipt
+              });
+              return;
+            }
+            peer.send({
+              type: 'i-am-master'
+            });
           }
-        }, timeout);
-      }
-      if (this.master) {
-        this.setMaster(null);
-      }
-      return this.broadcastPromiseRace({
-        type: 'who-is-master'
-      }, 5000).then((data, peer) => {
-        if (data.type === 'shut-up') {
-          return this.resolveMaster();
-        }
-      }).catch((e) => {
-        // timeout, there is no master.
-        const masterPromise = this.receiveOnceRace((data) => {
-          return data.type === 'i-am-master';
         });
-        this.resolvingMaster = true;
-        if (this.store.length === 0) {
-          // in this case, you are by default the master.
+        this.master = true;
+        this.resolvingMaster = false;
+        return Promise.resolve();
+      }
+      return this.connectAll().then(() => {
+        this.localSeed = Math.random();
+        this.broadcast({
+          type: 'seed-value',
+          value: this.localSeed
+        });
+        return this.getSeeds();
+      }).then((seeds) => {
+        seeds.push({
+          id: this.id,
+          value: this.localSeed
+        });
+        const sortedSeeds = seeds.sort(_arrSort);
+        const master = sortedSeeds[0];
+        if ((master.id === this.id) && (master.value === this.localSeed)) {
+          this.broadcast({
+            type: 'i-am-master'
+          });
           this.receiveAll((data, peer) => {
             if (data.type === 'who-is-master') {
-              // receipt is requested.
-              if (data.reply === true) {
-                peer.send({
-                  type: 'i-am-master',
-                  returnReceipt: data.returnReceipt
-                });
-                return;
-              }
               peer.send({
                 type: 'i-am-master'
               });
             }
           });
-          this.master = true;
+          this.master = true; // set as true if you are the master
           this.resolvingMaster = false;
-          return Promise.resolve();
-        }
-        return this.connectAll().then(() => {
-          this.localSeed = Math.random();
-          this.broadcast({
-            type: 'seed-value',
-            value: this.localSeed
-          });
-          return this.getSeeds();
-        }).then((seeds) => {
-          seeds.push({
-            id: this.id,
-            value: this.localSeed
-          });
-          const sortedSeeds = seeds.sort(_arrSort);
-          const master = sortedSeeds[0];
-          if ((master.id === this.id) && (master.value === this.localSeed)) {
-            this.broadcast({
-              type: 'i-am-master'
-            });
-            this.receiveAll((data, peer) => {
-              if (data.type === 'who-is-master') {
-                peer.send({
-                  type: 'i-am-master'
-                });
-              }
-            });
-            this.master = true; // set as true if you are the master
+          return;
+        } else {
+          return masterPromise.then((data) => {
             this.resolvingMaster = false;
-            return;
-          } else {
-            return masterPromise.then((data) => {
-              this.resolvingMaster = false;
-              return data;
-            });
-          }
-        });
+            return data;
+          });
+        }
       });
     });
   }
