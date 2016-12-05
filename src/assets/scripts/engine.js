@@ -1,8 +1,9 @@
 const {Phaser} = window;
 const {EventEmitter} = require('events');
 
-export default class Pacman {
-  constructor (players = []) {
+export default class Engine {
+  constructor (id, players = []) {
+    this.id = id;
     this.game = new Phaser.Game(448, 496, Phaser.AUTO);
     // this.game.state.add('Game', this, true);
 
@@ -52,7 +53,8 @@ export default class Pacman {
     if (x && y) {
       pacman.reset(x, y);
     }
-    return {id, marker, pacman, directions: {}, turn: null};
+    const isSelf = id === this.id;
+    return {id, isSelf, marker, pacman, directions: {}, turn: null};
   }
 
   updatePlayer (player) {
@@ -70,6 +72,12 @@ export default class Pacman {
     }
     this.tryTurn(existing, direction);
     this.move(existing);
+  }
+
+  removePlayer (id) {
+    this.players = this.players.filter(player => {
+      return player.id !== id;
+    });
   }
 
   preload () {
@@ -216,17 +224,20 @@ export default class Pacman {
   eatDot (pacman, dot) {
     dot.kill();
     const player = this.players.find(player => player.pacman === pacman);
-    player.score = (player.score || 0) + 1;
+    if (!player.isSelf) return;
 
+    player.score = (player.score || 0) + 1;
     const data = {
       x: dot.x,
-      y: dot.y
+      y: dot.y,
+      score: player.score
     };
     this.emitter.emit('eat-dot', data);
   }
 
   eatMan (pacman1, pacman2) {
     // decide who eats who
+    console.log('eatMan');
     const player1 = this.players.find(player => player.pacman === pacman1);
     const player2 = this.players.find(player => player.pacman === pacman2);
     const shouldReport = player1.isSelf || player2.isSelf;

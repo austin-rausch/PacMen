@@ -3,7 +3,7 @@ import Debug from 'debug';
 
 let clientStore = [];
 
-export class Client {
+export default class Client {
   constructor(socket) {
     this.id = uuid.v4();
     this.socket = socket;
@@ -15,6 +15,10 @@ export class Client {
     this.socket.on('close', () => this._close());
     this.socket.on('disconnect', () => this._close());
     clientStore.push(this);
+  }
+
+  static all() {
+    return clientStore;
   }
 
   _receive(message) {
@@ -40,7 +44,3 @@ export class Client {
     this._receivers.push(callback);
   }
 }
-
-export default {
-  all: clientStore
-};

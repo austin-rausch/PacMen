@@ -8,18 +8,19 @@ import PeerController from './peerController';
 import Socket from './socket';
 import Engine from './engine';
 import Pacman from './pacman';
-// import Ghost from './ghost';
+import Scoreboard from './scoreboard';
 
 const debug = Debug('app:main');
 localStorage.debug = 'app:*';
 
 const {Phaser} = window;
 const client = {id: null};
-const engine = new Engine();
 const peers = new PeerController();
+const scoreboard = new Scoreboard('#scoreboard');
+let engine;
+let pacman;
 
-
-window.engine = engine;
+window.engine = () => engine;
 /* const pinky = new Ghost();
 pinky.subscribe(state => {
   engine.updatePlayer(state);
@@ -29,9 +30,6 @@ const clyde = new Ghost();
 clyde.subscribe(state => {
   engine.updatePlayer(state);
 });*/
-
-const pacman = new Pacman('me');
-// Pacman.bind(pacman, engine);
 
 const startWrap = document.getElementById('startWrap');
 const startButton = document.getElementById('startButton');
@@ -82,42 +80,47 @@ function dispatch (message) {
   peers.sendMaster(message);
 }
 
-let lastMove = {x: 0, y: 0};
-pacman.subscribe(({id, direction}) => {
-  const player = engine.players.find(player => player.id === id);
-  if (!player) return;
+function bindActions () {
+  let lastMove = {x: 0, y: 0};
+  pacman.subscribe(({id, direction}) => {
+    const player = engine.players.find(player => player.id === id);
+    if (!player) return;
 
-  const {x, y} = player.pacman;
-  if (lastMove.x === x && lastMove.y === y) return;
-  lastMove = {x, y};
+    const {x, y} = player.pacman;
+    if (lastMove.x === x && lastMove.y === y) return;
+    lastMove = {x, y};
 
-  const message = {
-    type: 'pacman-move',
-    sender: peers.id,
-    id: peers.id,
-    direction,
-    x, y
-  };
-  dispatch(message);
-});
+    const message = {
+      type: 'pacman-move',
+      sender: peers.id,
+      id: peers.id,
+      direction,
+      x, y
+    };
+    dispatch(message);
+  });
 
-engine.onPacmanEat(data => {
-  const message = {
-    type: 'pacman-eat',
-    sender: peers.id,
-    ...data
-  };
-  dispatch(message);
-});
+  engine.onPacmanEat(data => {
+    console.log('onPacmanEat');
+    const message = {
+      ...data,
+      type: 'pacman-eat',
+      sender: peers.id,
+      id: peers.id
+    };
+    dispatch(message);
+  });
 
-engine.onDotEat(data => {
-  const message = {
-    ...data,
-    type: 'pacman-dot',
-    sender: peers.id
-  };
-  dispatch(message);
-});
+  engine.onDotEat(data => {
+    const message = {
+      ...data,
+      type: 'pacman-dot',
+      sender: peers.id,
+      id: peers.id
+    };
+    dispatch(message);
+  });
+}
 
 const handlers = {
   'signal-data': handleSignalData,
@@ -137,17 +140,29 @@ client.socket.receive(message => {
 });
 
 function startGame () {
-  engine.startGame();
-  Pacman.bind(pacman, engine);
   client.socket.send({
     type: 'join-random-game',
     displayName: 'Mike Tyson'
   });
 }
 
+function forgetPeer (peer) {
+  const {id} = peer;
+  engine.removePlayer(id);
+  scoreboard.removePlayer(id);
+}
+
+const waitForId = new Defer();
+
 function handleClientId (message) {
-  client.id = message.clientId;
-  peers.id = message.clientId;
+  const id = message.clientId;
+  peers.id = id;
+  pacman = new Pacman(id);
+  engine = new Engine(id);
+  Pacman.bind(pacman, engine);
+  bindActions();
+  engine.startGame();
+  waitForId.resolve(id);
 }
 
 function handleSignalData (message) {
@@ -156,26 +171,32 @@ function handleSignalData (message) {
 }
 
 function handleNewPlayer (message) {
-  debug('handleNewPlayer', message);
-  const {roomId, clientId} = message;
-  if (clientId === client.id) return;
-  const peer = new Peer(client, clientId, roomId);
-  peers.addPeer(peer);
-  peer.receive(handlePeerMessage);
+  waitForId.then(selfId => {
+    debug('handleNewPlayer', message);
+    const {roomId, clientId} = message;
+    if (clientId === selfId) return;
+    const peer = new Peer(client, clientId, roomId);
+    peers.addPeer(peer);
+    peer.receive(handlePeerMessage);
+    peer.on('disconnect', () => forgetPeer(peer));
+  });
 }
 
 function handleRoomJoined (message) {
-  debug('handleRoomJoined', message);
-  const {roomId, roomMembers} = message;
-  roomMembers.forEach(peerId => {
-    if (peerId === client.id) return;
-    const peer = new Peer(client, peerId, roomId, true);
-    peers.addPeer(peer);
-    peer.receive(handlePeerMessage);
-  });
-  return peers.resolveMaster().then(() => {
-    const result = peers.isMaster() ? 'Master' : 'Not master';
-    debug(`election results: ${result}`);
+  waitForId.then(selfId => {
+    debug('handleRoomJoined', message);
+    const {roomId, roomMembers} = message;
+    roomMembers.forEach(peerId => {
+      if (peerId === selfId) return;
+      const peer = new Peer(client, peerId, roomId, true);
+      peers.addPeer(peer);
+      peer.receive(handlePeerMessage);
+      peer.on('disconnect', () => forgetPeer(peer));
+    });
+    return peers.resolveMaster().then(() => {
+      const result = peers.isMaster() ? 'Master' : 'Not master';
+      debug(`election results: ${result}`);
+    });
   });
 }
 
@@ -194,12 +215,15 @@ function handlePeerMessage(message, peer) {
 
   if (message.type === 'pacman-ate') {
     const {updates} = message;
-    updates.forEach(update => engine.updatePlayer(update));
+    updates.forEach(update => {
+      engine.updatePlayer(update);
+    });
   }
 
   if (message.type === 'pacman-dot') {
-    const {x, y} = message;
+    const {id, score, x, y} = message;
     engine.killDotAtPoint(x, y);
+    scoreboard.updatePlayer({id, score});
   }
 
   if (!peers.isMaster()) return;
@@ -216,9 +240,12 @@ function handlePeerMessage(message, peer) {
   // We open a window of time for another pacman
   // to acknowledge the interaction
   if (message.type === 'pacman-eat') {
+    console.log('message.type = pacman-eat');
     const {id, target, score} = message;
     attemptEat({id, target, score})
-      .then(({hasVictor, winner, loser}) => {
+      .then(result => {
+        console.log('pacman-eat.then', result);
+        const {loser} = result;
         const {x, y} = spawnPosition();
         const loserUpdate = {
           id: loser,
@@ -233,6 +260,7 @@ function handlePeerMessage(message, peer) {
         engine.updatePlayer(loserUpdate);
       })
       .catch(reason => {
+        console.log('pacman-eat.catch', reason);
         // assume no other peer ack'd so we drop the eat
       });
   }
@@ -244,16 +272,24 @@ const spawnPoints = [
   {x: 416, y: 16},
   {x: 16, y: 224},
   {x: 416, y: 224},
-  {x: 416, y: 464},
+  {x: 16, y: 464},
   {x: 416, y: 464}
-];
+].map(point => ({x: point.x + 8, y: point.y + 8}));
 function spawnPosition () {
   spawnIndex = (spawnIndex + 1) % spawnPoints.length;
   return spawnPoints[spawnIndex];
 }
+window.spawnPosition = spawnPosition;
 
 let openEats = [];
 function attemptEat ({id, target, score}) {
+  const dupEat = openEats.find(eat => {
+    return eat.target === target && eat.id === id;
+  });
+  if (dupEat) {
+    const error = new Error('Dup open eat');
+    return Promise.reject(error);
+  }
   const existingEat = openEats.find(eat => {
     return eat.target === id && eat.id === target;
   });
@@ -265,7 +301,7 @@ function attemptEat ({id, target, score}) {
       if (newEat.done) return;
       // reap unack'd eat
       openEats = openEats.filter(eat => eat !== newEat);
-      newEat.reject(new Error('No one acknowledged eat'));
+      newEat.defer.reject(new Error('No one acknowledged eat'));
     }, 200);
     return defer;
   }

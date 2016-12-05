@@ -4,20 +4,24 @@ import Debug from 'debug';
 const roomStore = [];
 const maxParticipants = 5;
 
-function getUnfilledRoom() {
-  const room = roomStore.find(room => {
-    return room.clients.length < maxParticipants;
-  });
-  if (room) return room;
-  return new Room();
-}
-
-export class Room {
+export default class Room {
   constructor() {
     this.id = uuid.v4();
     this.clients = [];
     this.debug = Debug(`app:room:${this.id}`);
     roomStore.push(this);
+  }
+
+  static all() {
+    return roomStore;
+  }
+
+  static getUnfilledRoom() {
+    const room = roomStore.find(room => {
+      return room.clients.length < maxParticipants;
+    });
+    if (room) return room;
+    return new Room();
   }
 
   addClient(client) {
@@ -33,8 +37,3 @@ export class Room {
     this.clients.forEach(client => client.send(data));
   }
 }
-
-export default {
-  all: roomStore,
-  getUnfilledRoom
-};

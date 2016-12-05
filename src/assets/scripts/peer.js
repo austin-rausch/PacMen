@@ -1,11 +1,14 @@
+import events from 'events';
 import SimplePeer from 'simple-peer';
 import Debug from 'debug';
 import tactic from 'tactic';
 
 const {Defer} = tactic;
+const {EventEmitter} = events;
 
-export class Peer {
+export class Peer extends EventEmitter {
   constructor(client, id, room, initiate) {
+    super();
     this.client = client;
     this.id = id;
     this.room = room;
@@ -81,11 +84,22 @@ export class Peer {
   }
 
   send(data) {
+    if (this.disconnected) return;
     if (!this.connected) {
       return this.connect.then(() => this.send(data));
     }
     const message = JSON.stringify(data);
-    this.connection.send(message);
+    try {
+      this.connection.send(message);
+    } catch (error) {
+      this.debug('Peer.send error', error);
+      this.disconnect();
+    }
+  }
+
+  disconnect() {
+    this.disconnected = true;
+    this.emit('disconnect');
   }
 
   sendPromise (data, timeout) {

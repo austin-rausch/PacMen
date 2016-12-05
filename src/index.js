@@ -4,7 +4,7 @@ import Debug from 'debug';
 import express from 'express';
 
 import handlers from './controllers';
-import {Client} from './models/client';
+import Client from './models/client';
 
 const debug = Debug('app:main');
 const port = 8080;
