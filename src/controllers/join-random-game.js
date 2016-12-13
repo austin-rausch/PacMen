@@ -6,7 +6,9 @@ export default function (client, data) {
     const message = {
       type: 'room-joined',
       roomId: room.id,
-      roomMembers: room.clients.map((c) => c.id),
+      roomMembers: room.clients.map((c) => {
+        return {id: c.id, displayName: c.displayName};
+      }),
 
       displayName,
       receipt

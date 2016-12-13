@@ -4,14 +4,25 @@ export default class Scoreboard {
     this.players = [];
   }
 
+  addPlayer (player, peer) {
+    player.score = 0;
+    player.displayName = peer.displayName;
+    this.players.push(player);
+  }
+
   updatePlayer (player) {
-    const {id, displayName, score} = player;
+    const {id, score} = player;
     const existing = this.players.find(player => player.id === id);
-    if (!existing) {
+    /* if (!existing) {
       this.players.push({id, displayName, score});
     } else {
       existing.score = score;
+    } */
+    if (!existing) {
+      console.log('Update scoreboard player, DNE.');
+      return;
     }
+    existing.score = score;
     this.render();
   }
 
@@ -24,8 +35,8 @@ export default class Scoreboard {
 
   render () {
     const html = this.players.map(player => {
-      const {id, displayName, score} = player;
-      return `<div class='score'>
+      const {id, displayName, score, index} = player;
+      return `<div class='score player${index % 6}'>
         <b>${score}</b>
         <span>${displayName || id.slice(-5)}</span>
       </div>`;

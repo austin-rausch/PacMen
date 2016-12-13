@@ -183,6 +183,13 @@ export default class PeerController {
           });
           this.receiveAll((data, peer) => {
             if (data.type === 'who-is-master') {
+              if (data.reply === true) {
+                peer.send({
+                  type: 'i-am-master',
+                  returnReceipt: data.returnReceipt
+                });
+                return;
+              }
               peer.send({
                 type: 'i-am-master'
               });

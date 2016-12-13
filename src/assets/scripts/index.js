@@ -17,6 +17,16 @@ const {Phaser} = window;
 const client = {id: null};
 const peers = new PeerController();
 const scoreboard = new Scoreboard('#scoreboard');
+const randomNames = [
+  'Billy Bob',
+  'Mike Tyson',
+  'John Paul Jones',
+  'Simon Fan',
+  '(>^.^)>',
+  'p != np',
+  'Sun Tzu'
+];
+
 let engine;
 let pacman;
 
@@ -34,8 +44,15 @@ clyde.subscribe(state => {
 const startWrap = document.getElementById('startWrap');
 const startButton = document.getElementById('startButton');
 const leaveButton = document.getElementById('leaveButton');
+const displayNameInput = document.getElementById('displayNameInput');
+let displayName;
 startButton.addEventListener('click', function () {
-  startGame();
+  displayName = displayNameInput.value.trim();
+  // did not provide a display name, lets give them something random.
+  if (displayName === '') {
+    displayName = randomNames[Math.floor(Math.random() * (randomNames.length + 1))];
+  }
+  startGame(displayName);
   addClass(startButton, 'hidden');
   addClass(startWrap, 'hidden');
 });
@@ -101,7 +118,7 @@ function bindActions () {
   });
 
   engine.onPacmanEat(data => {
-    console.log('onPacmanEat');
+    // console.log('onPacmanEat');
     const message = {
       ...data,
       type: 'pacman-eat',
@@ -139,10 +156,10 @@ client.socket.receive(message => {
   handler(message);
 });
 
-function startGame () {
+function startGame (displayName) {
   client.socket.send({
     type: 'join-random-game',
-    displayName: 'Mike Tyson'
+    displayName: displayName
   });
 }
 
@@ -158,7 +175,9 @@ function handleClientId (message) {
   const id = message.clientId;
   peers.id = id;
   pacman = new Pacman(id);
-  engine = new Engine(id);
+  engine = new Engine(id, displayName);
+
+  engine.scoreboard = scoreboard; // I know this is messy but idc
   Pacman.bind(pacman, engine);
   bindActions();
   engine.startGame();
@@ -173,9 +192,9 @@ function handleSignalData (message) {
 function handleNewPlayer (message) {
   waitForId.then(selfId => {
     debug('handleNewPlayer', message);
-    const {roomId, clientId} = message;
+    const {roomId, clientId, displayName} = message;
     if (clientId === selfId) return;
-    const peer = new Peer(client, clientId, roomId);
+    const peer = new Peer(client, clientId, roomId, false, displayName);
     peers.addPeer(peer);
     peer.receive(handlePeerMessage);
     peer.on('disconnect', () => forgetPeer(peer));
@@ -186,9 +205,10 @@ function handleRoomJoined (message) {
   waitForId.then(selfId => {
     debug('handleRoomJoined', message);
     const {roomId, roomMembers} = message;
-    roomMembers.forEach(peerId => {
-      if (peerId === selfId) return;
-      const peer = new Peer(client, peerId, roomId, true);
+    roomMembers.forEach(member => {
+      const {id, displayName} = member;
+      if (id === selfId) return;
+      const peer = new Peer(client, id, roomId, true, displayName);
       peers.addPeer(peer);
       peer.receive(handlePeerMessage);
       peer.on('disconnect', () => forgetPeer(peer));
@@ -201,7 +221,7 @@ function handleRoomJoined (message) {
 }
 
 function handlePeerMessage(message, peer) {
-  debug('handlePeerMessage', message, peer);
+  // debug('handlePeerMessage', message, peer);
 
   // When a pacman reports its current position
   // or a direction change
@@ -209,21 +229,21 @@ function handlePeerMessage(message, peer) {
     const {sender, id, x, y, direction} = message;
     if (peers.id !== sender) {
       const update = {id, x, y, direction};
-      engine.updatePlayer(update);
+      engine.updatePlayer(update, peer);
     }
   }
 
   if (message.type === 'pacman-ate') {
     const {updates} = message;
     updates.forEach(update => {
-      engine.updatePlayer(update);
+      engine.updatePlayer(update, peer);
     });
   }
 
   if (message.type === 'pacman-dot') {
     const {id, score, x, y} = message;
     engine.killDotAtPoint(x, y);
-    scoreboard.updatePlayer({id, score});
+    scoreboard.updatePlayer({id, score}, peer);
   }
 
   if (!peers.isMaster()) return;
@@ -240,11 +260,11 @@ function handlePeerMessage(message, peer) {
   // We open a window of time for another pacman
   // to acknowledge the interaction
   if (message.type === 'pacman-eat') {
-    console.log('message.type = pacman-eat');
+    // console.log('message.type = pacman-eat');
     const {id, target, score} = message;
     attemptEat({id, target, score})
       .then(result => {
-        console.log('pacman-eat.then', result);
+        // console.log('pacman-eat.then', result);
         const {loser} = result;
         const {x, y} = spawnPosition();
         const loserUpdate = {
@@ -257,10 +277,10 @@ function handlePeerMessage(message, peer) {
           updates: [loserUpdate]
         };
         peers.broadcast(decision);
-        engine.updatePlayer(loserUpdate);
+        engine.updatePlayer(loserUpdate, peer);
       })
       .catch(reason => {
-        console.log('pacman-eat.catch', reason);
+        // console.log('pacman-eat.catch', reason);
         // assume no other peer ack'd so we drop the eat
       });
   }
@@ -302,7 +322,7 @@ function attemptEat ({id, target, score}) {
       // reap unack'd eat
       openEats = openEats.filter(eat => eat !== newEat);
       newEat.defer.reject(new Error('No one acknowledged eat'));
-    }, 200);
+    }, 500); // latency is typically 5-200 ms, 500 ms should allow for full RTT.
     return defer;
   }
   existingEat.done = true;
@@ -316,7 +336,7 @@ function attemptEat ({id, target, score}) {
 
   let winner;
   let loser;
-  if (score > existingEat) {
+  if (score > existingEat.score) {
     winner = id;
     loser = target;
   } else {
@@ -324,6 +344,7 @@ function attemptEat ({id, target, score}) {
     loser = id;
   }
   const decision = {winner, loser};
+  // console.log(decision);
   existingEat.defer.resolve(decision);
   return Promise.resolve(decision);
 }

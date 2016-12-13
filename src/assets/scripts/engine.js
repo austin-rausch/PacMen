@@ -1,11 +1,17 @@
 const {Phaser} = window;
 const {EventEmitter} = require('events');
 
+function _getPacmanSpriteName (player) {
+  return `pacman${(player.index % 6)}`;
+}
+
 export default class Engine {
-  constructor (id, players = []) {
+  constructor (id, myDisplayName, players = []) {
     this.id = id;
     this.game = new Phaser.Game(448, 496, Phaser.AUTO);
     // this.game.state.add('Game', this, true);
+
+    this.myDisplayName = myDisplayName;
 
     this.map = null;
     this.layer = null;
@@ -16,6 +22,10 @@ export default class Engine {
 
     this.speed = 150;
     this.threshold = 3;
+    // right now the selection of color is only local,
+    // therefore colors for the same person may be different on other computers.
+    // something to consider is doing this server side so its the same.
+    this.spriteIndex = 0;
 
     this.opposites = [Phaser.NONE, Phaser.RIGHT, Phaser.LEFT, Phaser.DOWN, Phaser.UP];
     this.emitter = new EventEmitter();
@@ -38,8 +48,11 @@ export default class Engine {
 
   createPlayer (player) {
     const {id, x, y, direction} = player;
+    const index = this.spriteIndex++;
+    player.index = index;
+    const spriteName = _getPacmanSpriteName(player); // unique color
     //  Position Pacman at grid location 14x17 (the +8 accounts for his anchor)
-    const pacman = this.add.sprite((14 * 16) + 8, (17 * 16) + 8, 'pacman', 0);
+    const pacman = this.add.sprite((14 * 16) + 8, (17 * 16) + 8, spriteName, 0);
     pacman.anchor.set(0.5);
     pacman.animations.add('munch', [0, 1, 2, 1], 20, true);
 
@@ -54,13 +67,30 @@ export default class Engine {
       pacman.reset(x, y);
     }
     const isSelf = id === this.id;
-    return {id, isSelf, marker, pacman, directions: {}, turn: null};
+    return {id, isSelf, marker, pacman, directions: {}, turn: null, index};
   }
 
-  updatePlayer (player) {
+  updatePlayer (player, peer) {
     const existing = this.players.find(p => player.id === p.id);
     if (!existing) {
-      this.players.push(this.createPlayer(player));
+      if (peer) {
+        // when the peer disconnects remove them from the game
+        peer.on('disconnect', () => {
+          this.removePlayer(player.id);
+        });
+      }
+      // yes bad practice I know.
+      const phaserPlayer = this.createPlayer(player);
+      if (this.scoreboard) {
+        if (peer) {
+          player.peer = peer;
+        } else {
+          player.peer = {displayName: this.myDisplayName};
+        }
+        player.index = phaserPlayer.index;
+        this.scoreboard.addPlayer(player);
+      }
+      this.players.push(phaserPlayer);
       return;
     }
 
@@ -76,6 +106,9 @@ export default class Engine {
 
   removePlayer (id) {
     this.players = this.players.filter(player => {
+      if (player.id === id) {
+        player.pacman.destroy(); // destroy the player's sprite
+      }
       return player.id !== id;
     });
   }
@@ -84,7 +117,14 @@ export default class Engine {
     //  Needless to say, graphics (C)opyright Namco
     this.load.image('dot', '/sprites/dot.png');
     this.load.image('tiles', '/sprites/pacman-tiles.png');
-    this.load.spritesheet('pacman', '/sprites/pacman.png', 32, 32);
+
+    // I know these are off by one but I didn't want to rename the files.
+    this.load.spritesheet('pacman0', '/sprites/pacman1.png', 32, 32);
+    this.load.spritesheet('pacman1', '/sprites/pacman2.png', 32, 32);
+    this.load.spritesheet('pacman2', '/sprites/pacman3.png', 32, 32);
+    this.load.spritesheet('pacman3', '/sprites/pacman4.png', 32, 32);
+    this.load.spritesheet('pacman4', '/sprites/pacman5.png', 32, 32);
+    this.load.spritesheet('pacman5', '/sprites/pacman6.png', 32, 32);
     this.load.tilemap('map', '/sprites/pacman-map.json', null, Phaser.Tilemap.TILED_JSON);
   }
 
@@ -237,7 +277,7 @@ export default class Engine {
 
   eatMan (pacman1, pacman2) {
     // decide who eats who
-    console.log('eatMan');
+    console.log('cannibalize');
     const player1 = this.players.find(player => player.pacman === pacman1);
     const player2 = this.players.find(player => player.pacman === pacman2);
     const shouldReport = player1.isSelf || player2.isSelf;

@@ -68,7 +68,6 @@ div.enterWrap {
 }
 
 .score {
-  border: 2px solid #333;
   border-radius: 2px;
   text-align: center;
   padding: 10px;
@@ -79,10 +78,52 @@ div.enterWrap {
   display: block;
   font-size: 2.4em;
   padding-bottom: 5px;
-  color: #fff;
 }
 
 .score span {
   display: block;
-  color: #eee;
+}
+
+.display-name {
+  color: white;
+}
+
+.text-input {
+  margin-bottom: 10px;
+  vertical-align: middle;
+  height: 25px;
+  background-color: grey;
+  color: white;
+  font-family: monospace, sans-serif;
+  font-size: 16;
+}
+
+.player0 {
+  color: #FFFE06;
+  border: 2px solid #FFFE06;
+}
+
+.player1 {
+  color: #E9655C;
+  border: 2px solid #E9655C;
+}
+
+.player2 {
+  color: #71F59B;
+  border: 2px solid #71F59B;
+}
+
+.player3 {
+  color: #475EFF;
+  border: 2px solid #475EFF;
+}
+
+.player4 {
+  color: #F850EF;
+  border: 2px solid #F850EF;
+}
+
+.player5 {
+  color: #FEA21C;
+  border: 2px solid #FEA21C;
 }

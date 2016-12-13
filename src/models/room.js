@@ -24,8 +24,9 @@ export default class Room {
     return new Room();
   }
 
-  addClient(client) {
+  addClient (client, displayName) {
     client.room = this;
+    client.displayName = displayName;
     this.clients.push(client);
   }
 

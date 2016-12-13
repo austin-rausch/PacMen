@@ -7,7 +7,7 @@ const {Defer} = tactic;
 const {EventEmitter} = events;
 
 export class Peer extends EventEmitter {
-  constructor(client, id, room, initiate) {
+  constructor(client, id, room, initiate, displayName) {
     super();
     this.client = client;
     this.id = id;
@@ -19,6 +19,7 @@ export class Peer extends EventEmitter {
     this.seed = null;
     this.master = false;
     this.controller = null;
+    this.displayName = displayName || 'you dun goofed';
     this.connection = new SimplePeer({initiator: initiate});
     this._connect().then(() => {
       this.debug('connected');
@@ -38,6 +39,8 @@ export class Peer extends EventEmitter {
         this.master = true; // this peer is the master
         this.connection.on('close', () => { // if this peer's connection closes recalculate master
           this.controller.removePeer(this);
+          console.log('Connection closed in peer, disconnecting');
+          this.disconnect();
           return this.controller.resolveMaster().then(() => {
             if (this.controller.master === true) {
               console.log('I am master');
@@ -46,6 +49,8 @@ export class Peer extends EventEmitter {
             }
           });
         });
+      } else if (data.type === 'display-name') {
+        this.displayName = data.value;
       }
     });
   }
@@ -99,6 +104,7 @@ export class Peer extends EventEmitter {
 
   disconnect() {
     this.disconnected = true;
+    console.log('emitting disconnect');
     this.emit('disconnect');
   }
 
