@@ -84,18 +84,31 @@ div.enterWrap {
   display: block;
 }
 
+#logo {
+  padding: 1em 0em;
+}
+
+#logo img {
+  /*display: block;*/
+  margin: 10px -10px;
+}
+
 .display-name {
   color: white;
+  margin-bottom: 10px;
 }
 
 .text-input {
   margin-bottom: 10px;
   vertical-align: middle;
-  height: 25px;
-  background-color: grey;
+  line-height: 50px;
+  padding: 0px 15px;
+  background-color: rgba(255,255,255,0.1);
+  outline: none;
   color: white;
   font-family: monospace, sans-serif;
-  font-size: 16;
+  font-size: 24px;
+  width: 200px;
 }
 
 .player0 {
