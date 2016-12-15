@@ -4,9 +4,9 @@ export default class Scoreboard {
     this.players = [];
   }
 
-  addPlayer (player, peer) {
+  addPlayer (player) {
     player.score = 0;
-    player.displayName = peer.displayName;
+    player.displayName = player.peer.displayName;
     this.players.push(player);
   }
 
